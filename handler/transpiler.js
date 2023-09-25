@@ -13,7 +13,7 @@ const {
   supportTokenSend,
   supportedTokenSwap,
   bridgeInfoExtractor,
-  supportedTokenSwapGnosis
+  supportedTokenSwapSolana
 } = require("./contants");
 const { getResponse } = require('./gpt/llm')
 const { isWordSimilar, isPairSimilar } = require('./utils/similarity')
@@ -47,13 +47,13 @@ const transpiler = async (currentStep, classifier, userAddress, chain) => {
     let swapMeta;
     // order would always be correct in supportedTokenSwap
     
-    if(chain === "137") {
-      console.log('we are here ', chain);
-      swapMeta = supportedTokenSwap.filter(pair => isPairSimilar(pair.pair, swapInfo[0]));
-      console.log('these are supportred tokens ', supportedTokenSwap);
-    }
-    else 
-    swapMeta = supportedTokenSwapGnosis.filter(pair => isPairSimilar(pair.pair, swapInfo[0]));
+    // if(chain === "137") {
+    //   console.log('we are here ', chain);
+    //   swapMeta = supportedTokenSwap.filter(pair => isPairSimilar(pair.pair, swapInfo[0]));
+    //   console.log('these are supportred tokens ', supportedTokenSwap);
+    // }
+    // else 
+    swapMeta = supportedTokenSwapSolana.filter(pair => isPairSimilar(pair.pair, swapInfo[0]));
 
     if(swapMeta.length === 0) return "Insufficient details for swap";
     console.log('this is swap meta ', swapMeta);

@@ -1,5 +1,6 @@
+const { LAMPORTS_PER_SOL, PublicKey } = require('@solana/web3.js');
 const Axios = require('axios')
-const { ethers } = require('ethers')
+const { ethers, BigNumber } = require('ethers')
 const SPENDER_1INCH = '0x1111111254eeb25477b68fb85ed929f73a960582' // by default approval would go to this address
 
 const approveUrl = (chain) => `https://api.1inch.io/v5.0/${chain}/approve/transaction`;
@@ -11,8 +12,64 @@ const constructSwapTransaction = (swapData) => {
   console.log('this is swap data', swapData);
   const pair = swapData.pair;
 
-  if(isERC20(pair[0])) return constructERC20SwapTransaction(swapData);
-  else return constructNormalSwapTransaction(swapData);
+  return constructSolanaSwapTransaction(swapData)
+  // if(isERC20(pair[0])) return constructERC20SwapTransaction(swapData);
+  // else return constructNormalSwapTransaction(swapData);
+}
+
+const constructSolanaSwapTransaction = async (swapData) => {
+  // const connection = new Connection('https://api.devnet.solana.com', 'confirmed');
+  let transactions = [];
+
+  const data = await (
+    // await fetch(`https://quote-api.jup.ag/v6/quote?inputMint=${new PublicKey(swapData.tokenAddress1).toString()}\
+    //   &outputMint=${new PublicKey(swapData.tokenAddress2).toString()}\
+    //   &amount=${BigNumber(Number(swapData.amount) * LAMPORTS_PER_SOL).toString()}\
+    //   &slippageBps=50`
+    // )
+    await fetch('https://quote-api.jup.ag/v6/quote?inputMint=So11111111111111111111111111111111111111112&outputMint=EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v&amount=1000000&slippageBps=1')
+  ).json();
+  const quoteResponse = data;
+  console.log(quoteResponse)
+  console.log("shit")
+
+  // get serialized transactions for the swap
+  const transaction = await (
+    await fetch('https://quote-api.jup.ag/v6/swap', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        // quoteResponse from /quote api
+        quoteResponse,
+        // user public key to be used for the swap
+        userPublicKey: new PublicKey(swapData.userAddress).toString(),
+        // auto wrap and unwrap SOL. default is true
+        wrapUnwrapSOL: true,
+        // feeAccount is optional. Use if you want to charge a fee.  feeBps must have been passed in /quote API.
+        // feeAccount: "fee_account_public_key"
+      })
+    })
+  ).json();
+
+  console.log(transaction)
+  const { swapTransaction } = transaction
+
+
+  // const swapTxn = {
+  //   to: quoteResponse.data.tx.to,
+  //   value: quoteResponse.data.tx.value,
+  //   data: quoteResponse.data.tx.data
+  // }
+
+  transactions.push(swapTransaction);
+
+  return {
+    success: true,
+    context: `This transactions would swap your ${swapData.amount} of sol token against ${swapData.pair[1]} token.`,
+    transaction: transactions
+  };
 }
 
 const constructNormalSwapTransaction = async (swapData) => {

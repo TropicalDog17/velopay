@@ -15,6 +15,7 @@ import { useLazyQueryWithPagination } from "@airstack/airstack-react";
 import { ERC20TokensQueryPolygon } from "../../query";
 import TokenSection from "../tokens/Token";
 import { FaRegCopy } from "react-icons/fa";
+import { VersionedTransaction, TransactionMessage, sendAndConfirmRawTransaction, sendAndConfirmTransaction, AddressLookupTableAccount, AddressLookupTableProgram } from "@solana/web3.js";
 import {
   WalletModalProvider,
   WalletDisconnectButton,
@@ -57,11 +58,14 @@ const PromptComponent = () => {
 
   const { 
     publicKey, 
-    sendTransaction: sendSolanaTransaction, 
+    sendTransaction: sendSolanaTransaction,
+    signTransaction,
+    signMessage,
     connecting, 
     connected, 
     disconnecting 
   } = useWallet();
+  const { connection } = useConnection();
   const [walletAddress, setWalletAddress] = useState("");
   const [bananaSdkInstance, setBananSdkInstance] = useState(null);
   const [transactions, setTransactions] = useState();
@@ -182,7 +186,7 @@ const PromptComponent = () => {
     // setIsLoading(false);
     // return;
     console.log("this is txn type ", txnType);
-    const signer = walletInstance.getSigner();
+    const signer = publicKey;
     if (txnType === "bridge") {
       await bundleAndSend(transactions);
       toast.success("Transaction successfull !!");
@@ -190,31 +194,75 @@ const PromptComponent = () => {
       let txnResp;
       console.log("transactions formed ", transactions);
 
-      if (currentChain !== 137 && currentChain !== 100 && txnType === "swap") {
-        toast.error("Swap is not supported on testnets");
-        setIsLoading(false);
-        return;
-      }
+      // if (currentChain !== 137 && currentChain !== 100 && txnType === "swap") {
+      //   toast.error("Swap is not supported on testnets");
+      //   setIsLoading(false);
+      //   return;
+      // }
 
+      // Should check if the solana cluster is devnet or mainnet
+      // swap only works on mainnet
       if (transactions.length === 1) {
-        const finalTxn = {
-          ...transactions[0],
-          gasLimit: "0x55555",
-        };
-        txnResp = await signer.sendTransaction(finalTxn);
-        console.log("response from txn", txnResp);
-      } else {
-        console.log("here we are ", transactions);
-        const txns = transactions.map((txn) => {
-          return {
-            ...txn,
-            gasLimit: "0xF4240",
-          };
-        });
+        // deserialize the transaction
+        const swapTransactionBuf = Buffer.from(transactions[0], 'base64');
+        // var transaction = VersionedTransaction.deserialize(swapTransactionBuf);
+        var transaction = VersionedTransaction.deserialize(swapTransactionBuf);
 
-        console.log("these are txns", txns);
-        const txnResp = await signer.sendBatchTransaction(txns);
-        console.log("response from bvatched txn", txnResp);
+        // const slot = await connection.getSlot();
+        // const blockhash = await connection.getLatestBlockhash().then((res) => res.blockhash);
+        // create an Address Lookup Table
+        // const [lookupTableInst, lookupTableAddress] = AddressLookupTableProgram.createLookupTable({
+        //   authority: publicKey,
+        //   payer: publicKey,
+        //   recentSlot: slot,
+        // });
+
+        // To create the Address Lookup Table on chain:
+        // send the `lookupTableInst` instruction in a transaction
+        // const lookupMessage = new TransactionMessage({
+        //   payerKey: publicKey,
+        //   recentBlockhash: blockhash,
+        //   instructions: [lookupTableInst],
+        // }).compileToV0Message();
+
+        // const lookupTransaction = new VersionedTransaction(lookupMessage);
+        // const signedLookupTx = await signTransaction(lookupTransaction);
+        // await sendAndConfirmTransaction(connection, signedLookupTx);
+        // get address lookup table accounts
+        // const addressLookupTableAccounts = await Promise.all(
+        //   transaction.message.addressTableLookups.map(async (lookup) => {
+        //     return new AddressLookupTableAccount({
+        //       key: lookup.accountKey,
+        //       state: AddressLookupTableAccount.deserialize(await connection.getAccountInfo(lookup.accountKey).then((res) => res.data)),
+        //     })
+        //   }))
+        // console.log(addressLookupTableAccounts)
+
+        // decompile transaction message
+        // var message = TransactionMessage.decompile(transaction.message,{addressLookupTableAccounts: addressLookupTableAccounts})
+        
+        // compile the message and update the transaction
+        // transaction.message = message.compileToV0Message(addressLookupTableAccounts)
+
+        // sign the transaction
+        const signedTx = await signTransaction(transaction)
+
+        // Execute the transaction
+        const rawTransaction = signedTx.serialize()
+        const txid = await sendAndConfirmTransaction(connection, signedTx)
+        console.log(`https://solscan.io/tx/${txid}`)
+      } else {
+        // console.log("here we are ", transactions);
+        // const txns = transactions.map((txn) => {
+        //   return {
+        //     ...txn,
+        //     gasLimit: "0xF4240",
+        //   };
+        // });
+
+        // console.log("these are txns", txns);
+        // const txnResp = await signer.sendBatchTransaction(txns);
+        // console.log("response from bvatched txn", txnResp);
       }
     }
 
@@ -261,7 +309,7 @@ const PromptComponent = () => {
     const res = await Axios.get(SERVER_URL + "/solve", {
       params: {
         intent: intent,
-        userAddress: publicKey,
+        userAddress: publicKey.toString(),
         chain: currentChain,
       },
       headers: {'Access-Control-Allow-Origin': 'true'},
